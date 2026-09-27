@@ -2,5 +2,9 @@
   {
     "path": "/",
     "file": "index.html"
+  },
+  {
+    "path": "/profile",
+    "file": "index.html"
   }
 ]
