@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react';
 import type { CSSProperties } from 'react';
 import { ArrowLeft, ArrowRight } from 'lucide-react';
+import { useNavigate } from 'react-router-dom';
 
 const BASE = (import.meta.env.MIAODA_CLIENT_BASE_PATH || '').replace(/\/$/, '') + '/';
 
@@ -77,6 +78,7 @@ function roleStyle(role: Role, isMobile: boolean): CSSProperties {
 }
 
 export default function ToonHubHero() {
+  const goTo = useNavigate();
   const [isMobile, setIsMobile] = useState(
     () => typeof window !== 'undefined' && window.innerWidth < 640,
   );
@@ -191,10 +193,16 @@ export default function ToonHubHero() {
         </div>
       </div>
 
-      {/* 右下：DISCOVER IT */}
+      {/* 右下：DISCOVER IT —— 选中工装男士时进入其个人主页 */}
       <button
         type="button"
-        onClick={() => navigate('next')}
+        onClick={() => {
+          if (active === 3) {
+            goTo('/profile');
+          } else {
+            navigate('next');
+          }
+        }}
         className="absolute bottom-6 right-4 z-[60] flex items-center gap-2 uppercase leading-none text-white opacity-95 transition-opacity duration-200 hover:opacity-100 sm:bottom-20 sm:right-10"
         style={{
           fontFamily: "'Anton', 'Arial Narrow', sans-serif",
