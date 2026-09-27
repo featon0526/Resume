@@ -6,10 +6,10 @@ import { useNavigate } from 'react-router-dom';
 const BASE = (import.meta.env.MIAODA_CLIENT_BASE_PATH || '').replace(/\/$/, '') + '/';
 
 const FIGURINES = [
-  { src: `${BASE}images/character-1.png`, alt: '橙白机能风角色 #77' },
-  { src: `${BASE}images/character-2.png`, alt: '米白运动风角色 #16' },
-  { src: `${BASE}images/character-3.png`, alt: '黑红战术风角色 #07' },
-  { src: `${BASE}images/character-4.png`, alt: '军绿工装风角色' },
+  { src: `${BASE}images/character-1.webp`, alt: '橙白机能风角色 #77' },
+  { src: `${BASE}images/character-2.webp`, alt: '米白运动风角色 #16' },
+  { src: `${BASE}images/character-3.webp`, alt: '黑红战术风角色 #07' },
+  { src: `${BASE}images/character-4.webp`, alt: '军绿工装风角色' },
 ];
 
 const GLOW_COLORS = [

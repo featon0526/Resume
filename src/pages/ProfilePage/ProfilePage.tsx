@@ -9,19 +9,36 @@ gsap.registerPlugin(ScrollTrigger);
 
 const BASE = (import.meta.env.MIAODA_CLIENT_BASE_PATH || '').replace(/\/$/, '') + '/';
 
-/* Invisible placeholder + absolute animated span（文字逐行揭幕） */
-function RevealLine({ text, className = '' }: { text: string; className?: string }) {
-  return (
-    <span className={`relative inline-block overflow-hidden align-bottom ${className}`}>
-      <span className="invisible whitespace-pre" aria-hidden="true">
-        {text}
-      </span>
-      <span className="absolute left-0 top-0 will-change-transform" data-reveal>
-        {text}
-      </span>
-    </span>
-  );
-}
+/* 按 video.currentTime 编排的文字时间轴 */
+const GROUPS = [
+  {
+    key: 'g1',
+    align: 'left' as const,
+    titleIn: 1.25,
+    typeIn: 1.5,
+    out: 3.0,
+    title: 'VIBE CODING / AGENT',
+    body: 'I turn prompts into working worlds, pairing fast creative code with agentic workflows that iterate, test, and ship.',
+  },
+  {
+    key: 'g2',
+    align: 'right' as const,
+    titleIn: 3.5,
+    typeIn: 4.2,
+    out: 6.0,
+    title: 'AIGC PLAYER',
+    body: 'I shape AI-generated visuals into polished stories, blending 3D character energy with brand-ready direction.',
+  },
+  {
+    key: 'g3',
+    align: 'left' as const,
+    titleIn: 6.3,
+    typeIn: 6.5,
+    out: 9.2,
+    title: 'WELCOME',
+    body: 'Welcome to Touge, where code, AI, and 3D craft meet in one scroll-driven portfolio.',
+  },
+];
 
 /* Magnet：仅用于 ContactButton */
 function Magnet({ children }: { children: React.ReactNode }) {
@@ -58,7 +75,6 @@ function Magnet({ children }: { children: React.ReactNode }) {
   );
 }
 
-/* ViewCaseButton：规格化 ghost pill */
 function ViewCaseButton() {
   return (
     <button
@@ -71,9 +87,9 @@ function ViewCaseButton() {
 }
 
 const WORKS = [
-  { src: `${BASE}images/character-1.png`, title: 'NEON STREET #77', year: '2026', tag: 'Streetwear character system' },
-  { src: `${BASE}images/character-2.png`, title: 'URBAN MOTION #16', year: '2026', tag: 'Sportswear hero pose' },
-  { src: `${BASE}images/character-3.png`, title: 'FIELD TACTICS #07', year: '2026', tag: 'Tactical kit study' },
+  { src: `${BASE}images/character-1.webp`, title: 'NEON STREET #77', year: '2026', tag: 'Streetwear character system' },
+  { src: `${BASE}images/character-2.webp`, title: 'URBAN MOTION #16', year: '2026', tag: 'Sportswear hero pose' },
+  { src: `${BASE}images/character-3.webp`, title: 'FIELD TACTICS #07', year: '2026', tag: 'Tactical kit study' },
 ];
 
 const MARQUEE_WORDS = [
@@ -95,31 +111,80 @@ export default function ProfilePage() {
   const rootRef = useRef<HTMLDivElement>(null);
   const navigate = useNavigate();
 
+  /* 滚动视频 Hero */
+  const videoRef = useRef<HTMLVideoElement>(null);
+  const heroPinRef = useRef<HTMLElement>(null);
+  const introRef = useRef<HTMLDivElement>(null);
+  const groupBoxRefs = useRef<Record<string, HTMLDivElement | null>>({});
+  const bodyRefs = useRef<Record<string, HTMLParagraphElement | null>>({});
+
   useLayoutEffect(() => {
-    const ctx = gsap.context(() => {
-      gsap.from('[data-reveal]', {
-        yPercent: 120,
-        duration: 1.1,
-        ease: 'power4.out',
-        stagger: 0.1,
+    const video = videoRef.current;
+    if (!video) return;
+    const reduced = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+
+    /* 按 currentTime 实时计算 overlay 文字状态 */
+    const renderText = () => {
+      const t = video.currentTime || 0;
+      const intro = introRef.current;
+      if (intro) {
+        const o = Math.max(0, 1 - t / 1.1);
+        intro.style.opacity = String(o);
+        intro.style.transform = `translateY(${(1 - o) * -14}px)`;
+      }
+      GROUPS.forEach((g) => {
+        const box = groupBoxRefs.current[g.key];
+        const bodyEl = bodyRefs.current[g.key];
+        if (!box || !bodyEl) return;
+        const fade = 0.45;
+        const inP = Math.min(1, Math.max(0, (t - g.titleIn) / fade));
+        const outP = Math.min(1, Math.max(0, (g.out - t) / fade));
+        const o = Math.min(inP, outP);
+        box.style.opacity = String(o);
+        box.style.transform = `translateY(${(1 - o) * 16}px)`;
+        const typed = Math.min(1, Math.max(0, (t - g.typeIn) / 1.1));
+        bodyEl.textContent = g.body.slice(0, Math.floor(typed * g.body.length));
       });
-      gsap.from('[data-fade]', {
-        opacity: 0,
-        y: 24,
-        duration: 0.9,
-        ease: 'power3.out',
-        stagger: 0.12,
-      });
-      gsap.to('[data-figure]', {
-        yPercent: 14,
-        ease: 'none',
-        scrollTrigger: {
-          trigger: rootRef.current,
-          start: 'top top',
-          end: 'bottom top',
-          scrub: true,
+    };
+
+    let st: ScrollTrigger | null = null;
+    if (reduced) {
+      video.loop = true;
+      video.play().catch(() => {});
+    } else {
+      st = ScrollTrigger.create({
+        trigger: heroPinRef.current,
+        start: 'top top',
+        end: '+=350%',
+        pin: true,
+        scrub: 0.6,
+        onUpdate: (self) => {
+          if (video.readyState >= 1 && video.duration) {
+            video.currentTime = self.progress * video.duration;
+          }
         },
       });
+    }
+
+    let raf = 0;
+    const loop = () => {
+      renderText();
+      raf = requestAnimationFrame(loop);
+    };
+    loop();
+
+    const onResize = () => ScrollTrigger.refresh();
+    window.addEventListener('resize', onResize);
+    return () => {
+      cancelAnimationFrame(raf);
+      st?.kill();
+      window.removeEventListener('resize', onResize);
+    };
+  }, []);
+
+  /* 其余段落的滚动进场 */
+  useLayoutEffect(() => {
+    const ctx = gsap.context(() => {
       gsap.utils.toArray<HTMLElement>('[data-scroll-reveal]').forEach((el) => {
         gsap.from(el, {
           y: 44,
@@ -150,43 +215,63 @@ export default function ProfilePage() {
           <ArrowLeft size={14} strokeWidth={2} />
           Team
         </button>
-        <span className="text-xs font-semibold uppercase tracking-[0.18em]">AI Archmage</span>
+        <span className="text-xs font-semibold uppercase tracking-[0.18em]">Touge</span>
       </header>
 
-      {/* Hero：白色首屏，人物即主视觉 */}
-      <section className="relative flex min-h-dvh items-center overflow-hidden px-5 pt-24 sm:px-10">
-        <div className="pointer-events-none absolute -right-10 bottom-0 z-0 sm:-right-4 lg:right-10">
-          <img
-            src={`${BASE}images/character-4.png`}
-            alt="AI Archmage character"
-            data-figure
-            draggable={false}
-            className="h-[62vh] w-auto object-contain object-bottom sm:h-[78vh]"
-          />
-        </div>
+      {/* Hero：滚动驱动视频 */}
+      <section ref={heroPinRef} className="relative h-dvh w-full overflow-hidden bg-white">
+        <video
+          ref={videoRef}
+          src={`${BASE}video/character-4-intro.mp4`}
+          muted
+          playsInline
+          preload="auto"
+          className="absolute inset-0 h-full w-full object-contain"
+        />
 
-        <div className="relative z-10 max-w-5xl">
-          <p
-            data-fade
-            className="mb-4 text-xs font-medium uppercase tracking-[0.22em] text-[#0C0C0C]/60 sm:mb-6"
-          >
-            Creative Developer — Character & Realtime Render
+        {/* 开场大标题 I AM TOUGE */}
+        <div
+          ref={introRef}
+          className="absolute left-5 top-24 z-10 sm:left-10 sm:top-28"
+          style={{ opacity: 0 }}
+        >
+          <p className="mb-3 text-[10px] font-medium uppercase tracking-[0.22em] text-[#0C0C0C]/60 sm:text-xs">
+            Portfolio
           </p>
           <h1
-            className="font-black uppercase leading-[0.95]"
-            style={{ fontSize: 'clamp(48px, 11vw, 168px)', letterSpacing: '-0.02em' }}
+            className="font-black uppercase leading-none"
+            style={{ fontSize: 'clamp(34px, 6vw, 84px)', letterSpacing: '-0.02em' }}
           >
-            <RevealLine text="AI" />
-            <br />
-            <RevealLine text="Archmage" />
+            I AM TOUGE
           </h1>
-          <p
-            data-fade
-            className="mt-6 max-w-md text-sm leading-relaxed text-[#0C0C0C]/70 sm:mt-8 sm:text-base"
-          >
-            Designing characters and interactive worlds at the intersection of 3D craft and the web.
-          </p>
         </div>
+
+        {/* 按时间轴 overlay 的文字组 */}
+        {GROUPS.map((g) => (
+          <div
+            key={g.key}
+            ref={(el) => {
+              groupBoxRefs.current[g.key] = el;
+            }}
+            className={`absolute z-10 max-w-[78vw] sm:max-w-lg ${
+              g.align === 'left' ? 'left-5 sm:left-10' : 'right-5 sm:right-10'
+            } bottom-20 sm:bottom-24`}
+            style={{ opacity: 0 }}
+          >
+            <h2
+              className="font-black uppercase leading-[1.04]"
+              style={{ fontSize: 'clamp(22px, 4vw, 58px)', letterSpacing: '-0.01em' }}
+            >
+              {g.title}
+            </h2>
+            <p
+              ref={(el) => {
+                bodyRefs.current[g.key] = el;
+              }}
+              className="mt-3 min-h-[3.5rem] text-xs leading-relaxed text-[#0C0C0C]/70 sm:mt-4 sm:text-base"
+            />
+          </div>
+        ))}
       </section>
 
       {/* Marquee */}
@@ -242,7 +327,7 @@ export default function ProfilePage() {
         </div>
       </section>
 
-      {/* Resume：严肃履历 */}
+      {/* Resume */}
       <section className="border-t border-[#0C0C0C]/10 bg-[#FAFAF8] px-5 py-24 sm:px-10 sm:py-32">
         <div data-scroll-reveal className="mb-12 sm:mb-16">
           <h2 className="text-2xl font-bold uppercase sm:text-4xl" style={{ letterSpacing: '-0.01em' }}>
@@ -282,10 +367,7 @@ export default function ProfilePage() {
 
       {/* Contact */}
       <section className="flex flex-col items-center px-5 py-28 text-center sm:py-40">
-        <p
-          data-fade
-          className="mb-4 text-xs font-medium uppercase tracking-[0.22em] text-[#0C0C0C]/60"
-        >
+        <p className="mb-4 text-xs font-medium uppercase tracking-[0.22em] text-[#0C0C0C]/60">
           Contact
         </p>
         <h2
